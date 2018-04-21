@@ -12,13 +12,15 @@ def get_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--data-dir',
                         type=str,
-                        default='./small_parallel_enja')
+                        default='../DATA/giga-fren')
     parser.add_argument('--output-dir',
                         type=str,
                         default='./test')
     parser.add_argument('--epoch', type=int, default=100)
     parser.add_argument('--batch-size', type=int, default=32)
     parser.add_argument('--lr', type=float, default=0.0001)
+    parser.add_argument('--src-lang', type=str, default='en')
+    parser.add_argument('--tgt-lang', type=str, default='fr')
     parser.add_argument('--src-vocab-size', type=int, default=25000)
     parser.add_argument('--tgt-vocab-size', type=int, default=25000)
     parser.add_argument('--encoder-hidden-n', type=int, default=512)

@@ -1,8 +1,8 @@
 import torch.utils.data as data
 from torch.utils.data.sampler import RandomSampler
 
-from lib.small_parallel_enja import SmallParallelEnJa
-from lib.vocabulary import Vocabulary
+from libs.datareader import DataReader
+from libs.vocabulary import Vocabulary
 
 
 class Dataset(data.DataLoader):
@@ -32,9 +32,19 @@ class Dataset(data.DataLoader):
 
 
 def get_dataloader(args):
-    src_sents, tgt_sents = SmallParallelEnJa(args, train=True).load_dataset()
-    src_vocab = Vocabulary(src_sents, args, args.src_vocab_size)
-    tgt_vocab = Vocabulary(tgt_sents, args, args.tgt_vocab_size)
+    src_sents, tgt_sents = DataReader(args, train=True).load_dataset()
+
+    # with open('input/vectors-%s-vocab.txt' % args.src_lang) as f:
+    #     src_words = [line.strip() for line in f.readlines()]
+    # with open('input/vectors-%s-vocab.txt' % args.tgt_lang) as f:
+    #     tgt_words = [line.strip() for line in f.readlines()]
+    src_vocab = Vocabulary(75000)
+    tgt_vocab = Vocabulary(75000)
+    # src_vocab.build_vocab_from_words(src_words)
+    # tgt_vocab.build_vocab_from_words(tgt_words)
+    src_vocab.build_vocab_from_sents(src_sents)
+    tgt_vocab.build_vocab_from_sents(tgt_sents)
+
     train_dataset = Dataset(src_sents,
                             tgt_sents,
                             args,
@@ -42,7 +52,7 @@ def get_dataloader(args):
                             tgt_vocab,
                             train=True)
 
-    src_sents, tgt_sents = SmallParallelEnJa(args, train=False).load_dataset()
+    src_sents, tgt_sents = DataReader(args, train=False).load_dataset()
     test_dataset = Dataset(src_sents,
                            tgt_sents,
                            args,

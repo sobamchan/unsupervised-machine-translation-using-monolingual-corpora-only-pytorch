@@ -9,9 +9,9 @@ class Vocabulary:
     def __len__(self):
         return len(self.vocab)
 
-    def build_vocab_from_sents(self):
+    def build_vocab_from_sents(self, sents):
         vocab_counter = Counter()
-        for sent in self.sents:
+        for sent in sents:
             for word in sent.split():
                 vocab_counter[word] += 1
 
