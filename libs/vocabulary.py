@@ -3,19 +3,13 @@ from collections import Counter
 
 class Vocabulary:
 
-    def __init__(self, sents, args, vocab_size):
-        self.sents = sents
+    def __init__(self, vocab_size=False):
         self.vocab_size = vocab_size
-
-        vocab, w2i, i2w = self.build_vocab()
-        self.vocab = vocab
-        self.w2i = w2i
-        self.i2w = i2w
 
     def __len__(self):
         return len(self.vocab)
 
-    def build_vocab(self):
+    def build_vocab_from_sents(self):
         vocab_counter = Counter()
         for sent in self.sents:
             for word in sent.split():
@@ -33,7 +27,25 @@ class Vocabulary:
                 w2i[word] = len(w2i)
         i2w = {idx: w for w, idx in w2i.items()}
         assert len(vocab) == len(w2i) == len(i2w)
-        return vocab, w2i, i2w
+        self.vocab = vocab
+        self.w2i = w2i
+        self.i2w = i2w
+
+    def build_vocab_from_words(self, words):
+        words = words[:self.vocab_size] if self.vocab_size else words
+        w2i = {}
+        for word in words:
+            if word not in w2i.keys():
+                w2i[word] = len(w2i)
+        for token in ['<PAD>', '<UNK>', '<s>', '</s>']:
+            if token not in w2i.keys():
+                w2i[token] = len(w2i)
+        i2w = {idx: w for w, idx in w2i.items()}
+        vocab = list(w2i.keys())
+        assert len(vocab) == len(w2i) == len(i2w)
+        self.vocab = vocab
+        self.w2i = w2i
+        self.i2w = i2w
 
     def encode(self, sent):
         w2i = self.w2i
