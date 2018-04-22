@@ -38,8 +38,8 @@ def get_dataloader(args):
     #     src_words = [line.strip() for line in f.readlines()]
     # with open('input/vectors-%s-vocab.txt' % args.tgt_lang) as f:
     #     tgt_words = [line.strip() for line in f.readlines()]
-    src_vocab = Vocabulary(75000)
-    tgt_vocab = Vocabulary(75000)
+    src_vocab = Vocabulary(args.src_vocab_size)
+    tgt_vocab = Vocabulary(args.tgt_vocab_size)
     # src_vocab.build_vocab_from_words(src_words)
     # tgt_vocab.build_vocab_from_words(tgt_words)
     src_vocab.build_vocab_from_sents(src_sents)

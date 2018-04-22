@@ -19,10 +19,11 @@ class Logger(object):
 
     def _is_exist(self, fpath):
         if os.path.exists(fpath):
-            print('{} already exists!'.format(fpath))
-            b = int(input('do you wanna overwrite ? (0 or 1): '))
-            if not b:
-                raise Exception
+            return
+            # print('{} already exists!'.format(fpath))
+            # b = int(input('do you wanna overwrite ? (0 or 1): '))
+            # if not b:
+            #     raise Exception
 
     def _touch(self, fpath):
         Path(fpath).touch()
