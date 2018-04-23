@@ -83,7 +83,6 @@ class Trainer:
             # MSE loss
             loss = self.loss_func(preds, tgt_sents.view(-1))
             del output, hidden_c, preds, start_decode, y_len
-            torch.cuda.empty_cache()
             loss.backward()
             log_dict['train_losses'].append(loss.data[0])
             torch.nn.utils.clip_grad_norm(self.encoder.parameters(), 50.0)
