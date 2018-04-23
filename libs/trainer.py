@@ -49,15 +49,18 @@ class Trainer:
         else:
             self.encoder = encoder
             self.decoder = decoder
-        self.enc_optim = optim.Adam(self.encoder.parameters(), lr=args.lr)
-        self.dec_optim = optim.Adam(self.decoder.parameters(), lr=args.lr)
+        self.enc_optim = optim.SGD(self.encoder.parameters(), lr=args.lr)
+        self.dec_optim = optim.SGD(self.decoder.parameters(), lr=args.lr)
 
     def train_one_epoch(self, log_dict):
         tgt_vocab = self.tgt_vocab
         args = self.args
         total = int(len(self.train_loader.dataset) / args.batch_size)
         for i, dict_ in tqdm(enumerate(self.train_loader), total=total):
-            print(dict_)
+
+            self.encoder.zero_grad()
+            self.decoder.zero_grad()
+
             src_sents, src_lens, tgt_sents, tgt_lens =\
                 self.prepare_batch(dict_['src'], dict_['tgt'])
 
@@ -73,15 +76,14 @@ class Trainer:
                 tgt_sents = tgt_sents.cuda()
                 start_decode = start_decode.cuda()
 
-            self.encoder.zero_grad()
-            self.decoder.zero_grad()
-
             output, hidden_c = self.encoder(src_sents, src_lens)
             preds = self.decoder(start_decode, hidden_c,
                                  y_len, output)
 
             # MSE loss
             loss = self.loss_func(preds, tgt_sents.view(-1))
+            del output, hidden_c, preds, start_decode, y_len
+            torch.cuda.empty_cache()
             loss.backward()
             log_dict['train_losses'].append(loss.data[0])
             torch.nn.utils.clip_grad_norm(self.encoder.parameters(), 50.0)
@@ -102,9 +104,7 @@ class Trainer:
                                src_vocab.w2i['<PAD>'],
                                tgt_vocab.w2i['<PAD>'])
         src_sents = Variable(torch.LongTensor(src_sents))
-        print(src_sents.size())
         tgt_sents = Variable(torch.LongTensor(tgt_sents))
-        print(tgt_sents.size())
         return src_sents, src_lens, tgt_sents, tgt_lens
 
     def translate_batch(self, src_sents, tgt_sents):
