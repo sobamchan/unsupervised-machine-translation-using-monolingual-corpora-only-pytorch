@@ -151,6 +151,6 @@ class Trainer:
         print('source: %s' % batch['src'][0])
         print('target: %s' % batch['tgt'][0])
         tgt_i2w = self.tgt_i2w
-        print('prediction: %s' % [tgt_i2w[i] for i in preds[0]])
+        print('prediction: %s' % [tgt_i2w[i.data[0]] for i in preds[0]])
         print('test loss %f' % np.mean(losses))
         print('test accuracy %f' % np.mean(accs))
