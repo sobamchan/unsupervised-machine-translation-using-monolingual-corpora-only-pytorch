@@ -165,8 +165,11 @@ class Trainer:
                 src_sents = src_sents.cuda()
                 tgt_sents = tgt_sents.cuda()
 
-            outputs, hidden = self.encoder(src_sents, src_lens)
-            preds = self.decoder(self.tgt_w2i['<s>'],
+            outputs, hidden = self.encoder(self.src_embedder,
+                                           src_sents,
+                                           src_lens)
+            preds = self.decoder(self.tgt_embedder,
+                                 self.tgt_w2i['<s>'],
                                  outputs,
                                  hidden,
                                  tgt_sents.size(1))
@@ -227,8 +230,11 @@ class Trainer:
                 src_sents = src_sents.cuda()
                 tgt_sents = tgt_sents.cuda()
 
-            outputs, hidden = self.encoder(src_sents, src_lens)
-            preds = self.decoder(self.tgt_w2i['<s>'],
+            outputs, hidden = self.encoder(self.src_embedder,
+                                           src_sents,
+                                           src_lens)
+            preds = self.decoder(self.tgt_embedder,
+                                 self.tgt_w2i['<s>'],
                                  outputs,
                                  hidden,
                                  tgt_sents.size(1))
