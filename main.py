@@ -48,7 +48,7 @@ def main(args):
                     'train_losses': [],  # per batch
                     'test_bleus': []}   # per sample
         trainer.train_one_epoch(log_dict)
-        trainer.validation()
+        trainer.translation_validate()
 
         # evaluation and logging
         # evaluator.bleu(log_dict)

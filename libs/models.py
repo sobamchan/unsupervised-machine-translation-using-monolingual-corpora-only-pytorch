@@ -6,6 +6,19 @@ from torch.nn.utils.rnn import pad_packed_sequence
 import torch.nn.functional as F
 
 
+class Embedder(nn.Module):
+
+    def __init__(self, vocab_n, embedding_dim, padding_idx):
+        super(Embedder, self).__init__()
+        self.vocab_n = vocab_n
+        self.embedding_dim = embedding_dim
+        self.padding_idx = padding_idx
+        self.embedding = nn.Embedding(vocab_n, embedding_dim, padding_idx)
+
+    def forward(self, x):
+        return self.embedding(x)
+
+
 class Encoder(nn.Module):
 
     def __init__(self, vocab_n, embedding_dim, padding_idx, dropout_p,
@@ -17,7 +30,6 @@ class Encoder(nn.Module):
         self.num_layers = num_layers
         self.bidirectional = bidirectional
 
-        self.embedding = nn.Embedding(vocab_n, embedding_dim, padding_idx)
         self.dropout = nn.Dropout2d(dropout_p)
         self.gru = nn.GRU(embedding_dim,
                           hidden_n,
@@ -32,8 +44,8 @@ class Encoder(nn.Module):
         hidden = Variable(hidden)
         return hidden.cuda() if self.use_cuda else hidden
 
-    def forward(self, src_sents, src_lens):
-        x = self.embedding(src_sents)
+    def forward(self, embedder, src_sents, src_lens):
+        x = embedder(src_sents)
         x = self.dropout(x)
         hidden = self.init_hidden(x)
         x = pack_padded_sequence(x, src_lens, batch_first=True)
@@ -59,7 +71,6 @@ class Decoder(nn.Module):
         self.hidden_n = hidden_n
         self.bidirectional = bidirectional
 
-        self.embedding = nn.Embedding(vocab_n, embedding_dim, padding_idx)
         self.dropout = nn.Dropout2d(dropout_p)
         if self.bidirectional:
             gru_input_dim = embedding_dim + hidden_n * 2
@@ -84,7 +95,7 @@ class Decoder(nn.Module):
         hidden = Variable(hidden)
         return hidden.cuda() if self.use_cuda else hidden
 
-    def forward(self, start_id, enc_outputs, context, dec_max_len):
+    def forward(self, embedder, start_id, enc_outputs, context, dec_max_len):
         '''
         in:
           start_id: int
@@ -96,7 +107,7 @@ class Decoder(nn.Module):
         if self.use_cuda:
             start = start.cuda()
         hidden = self.init_hidden(enc_outputs)
-        embedded = self.embedding(start)
+        embedded = embedder(start)
         context = context.transpose(0, 1)  # B, direction_n, H
         preds = []
         for i in range(dec_max_len):
@@ -124,7 +135,7 @@ class Decoder(nn.Module):
             pred = F.log_softmax(pred, 1)
             preds.append(pred)
 
-            embedded = self.embedding(pred.max(1)[1]).unsqueeze(1)
+            embedded = embedder(pred.max(1)[1]).unsqueeze(1)
 
             context, alpha = self.calc_attention(enc_outputs, last_hidden)
         preds = torch.cat(preds, 1).view(batch_size * dec_max_len, -1)
