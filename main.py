@@ -46,10 +46,12 @@ def main(args):
     for i_epoch in range(0, args.epoch + 1):
 
         # train
-        log_dict = {'i_epoch': i_epoch,
-                    'train_losses': [],  # per batch
-                    'test_bleus': []}   # per sample
-        trainer.train_one_epoch(log_dict)
+        # log_dict = {'i_epoch': i_epoch,
+        #             'train_losses': [],  # per batch
+        #             'test_bleus': []}   # per sample
+        # trainer.train_one_epoch_translator()
+        trainer.train_one_epoch_autoencoder('src')
+
         # trainer.translation_validate()
 
         # evaluation and logging
