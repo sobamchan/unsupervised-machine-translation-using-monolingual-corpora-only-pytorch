@@ -15,12 +15,12 @@ class Trainer:
     def __init__(self, args):
         self.args = args
         train_dataloader, test_dataloader =\
-            get_dataloaders('../DATA/small-europarl-v7',
-                            'en',
-                            'fr',
+            get_dataloaders(args.data_dir,
+                            args.src_lang,
+                            args.tgt_lang,
                             args.batch_size,
-                            25000,
-                            25000)
+                            args.src_vocab_size,
+                            args.tgt_vocab_size)
         self.train_dataloader = train_dataloader
         self.test_dataloader = test_dataloader
         self.sw2i = train_dataloader.dataset.sw2i
