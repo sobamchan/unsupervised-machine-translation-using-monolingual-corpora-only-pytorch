@@ -1,3 +1,4 @@
+import copy
 import numpy as np
 import torch
 import torch.nn as nn
@@ -145,8 +146,8 @@ class Trainer:
 
     def train_one_epoch_autoencoder(self, obj):
         print('objective: %s' % obj)
-        sw2i = self.converters['src']['w2i']
-        tw2i = self.converters['tgt']['w2i']
+        non_obj = 'src' if obj == 'tgt' else 'tgt'
+        w2i = self.converters[obj]['w2i']
         i2w = self.converters[obj]['i2w']
         embedder = self.embedders[obj]
         embedder_optim = self.optims[obj]
@@ -154,28 +155,25 @@ class Trainer:
         for batch in tqdm(self.train_dataloader):
 
             # add noise
-            batch[obj] = [sent_noise.run(s) for s in batch[obj]]
+            org_batch = copy.deepcopy(batch)
+            batch[obj] = [sent_noise.run(s) for s in org_batch[obj]]
+            batch[non_obj] = org_batch[obj]
 
             # convert string to ids
-            batch = utils.prepare_batch(batch, sw2i, tw2i)
+            batch = utils.prepare_batch(batch, w2i, w2i)
 
-            # TODO better, readable implementation
-            if obj == 'src':
-                inputs, _, input_lengths, _ =\
-                    utils.pad_to_batch(batch, sw2i, tw2i)
-            if obj == 'tgt':
-                batch['src'] = batch['tgt']
-                inputs, _, input_lengths, _ =\
-                    utils.pad_to_batch(batch, tw2i, sw2i)
+            inputs, targets, input_lengths, target_lengths =\
+                utils.pad_to_batch(batch, w2i, w2i)
 
             start_decode =\
-                Variable(LT([[tw2i['<s>']] * inputs.size(0)])).transpose(0, 1)
+                Variable(LT([[w2i['<s>']] * inputs.size(0)])).transpose(0, 1)
             self.encoder.zero_grad()
             self.decoder.zero_grad()
             embedder.zero_grad()
 
             if self.args.use_cuda:
                 inputs = inputs.cuda()
+                targets = targets.cuda()
                 start_decode = start_decode.cuda()
 
             output, hidden_c = self.encoder(embedder,
@@ -185,11 +183,11 @@ class Trainer:
             preds = self.decoder(embedder,
                                  start_decode,
                                  hidden_c,
-                                 inputs.size(1),
+                                 targets.size(1),
                                  output,
                                  None,
                                  True)
-            loss = self.loss_func(preds, inputs.view(-1))
+            loss = self.loss_func(preds, targets.view(-1))
             losses.append(loss.data[0])
             loss.backward()
             nn.utils.clip_grad_norm(self.encoder.parameters(), 50.0)
@@ -198,7 +196,7 @@ class Trainer:
             self.dec_optim.step()
             embedder_optim.step()
         print(np.mean(losses))
-        preds = preds.view(inputs.size(0), inputs.size(1), -1)
+        preds = preds.view(inputs.size(0), targets.size(1), -1)
         preds_max = torch.max(preds, 2)[1]
         print(' '.join([i2w[p] for p in preds_max.data[0].tolist()]))
         print(' '.join([i2w[p] for p in preds_max.data[1].tolist()]))
