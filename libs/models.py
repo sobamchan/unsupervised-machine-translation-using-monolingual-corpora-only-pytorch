@@ -9,13 +9,13 @@ import torch.nn.functional as F
 
 class Embedder(nn.Module):
 
-    def __init__(self, vocab_n, embedding_dim, padding_idx):
+    def __init__(self, input_size, embedding_size, use_cuda=True):
         super(Embedder, self).__init__()
-        self.vocab_n = vocab_n
-        self.embedding_dim = embedding_dim
-        self.padding_idx = padding_idx
-        # self.embedding = nn.Embedding(vocab_n, embedding_dim, padding_idx)
-        self.embedding = nn.Embedding(vocab_n, embedding_dim)
+        self.input_size = input_size
+        self.embedding_size = embedding_size
+        self.use_cuda = use_cuda
+        self.embedding = nn.Embedding(input_size, embedding_size)
+        self.embedding.weight = nn.init.xavier_uniform(self.embedding.weight)
 
     def forward(self, x):
         return self.embedding(x)
