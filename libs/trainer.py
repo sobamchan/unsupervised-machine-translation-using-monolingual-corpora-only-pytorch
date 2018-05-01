@@ -159,12 +159,14 @@ class Trainer:
             # convert string to ids
             batch = utils.prepare_batch(batch, sw2i, tw2i)
 
+            # TODO better, readable implementation
             if obj == 'src':
                 inputs, _, input_lengths, _ =\
                     utils.pad_to_batch(batch, sw2i, tw2i)
             if obj == 'tgt':
-                _, inputs, _, input_lengths =\
-                    utils.pad_to_batch(batch, sw2i, tw2i)
+                batch['src'] = batch['tgt']
+                inputs, _, input_lengths, _ =\
+                    utils.pad_to_batch(batch, tw2i, sw2i)
 
             start_decode =\
                 Variable(LT([[tw2i['<s>']] * inputs.size(0)])).transpose(0, 1)
