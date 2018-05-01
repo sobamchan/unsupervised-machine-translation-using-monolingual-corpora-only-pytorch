@@ -2,3 +2,5 @@ __pycache__
 small_parallel_enja
 test
 vectors-*
+*.en
+*.fr
