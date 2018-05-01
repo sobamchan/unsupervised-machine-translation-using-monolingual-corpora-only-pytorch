@@ -1,19 +1,30 @@
+import random
+import unicodedata
 from collections import Counter
+import re
 import torch
 from torch.autograd import Variable
 from torch import LongTensor as LT
-from nltk.translate.bleu_score import sentence_bleu
-from nltk.translate.bleu_score import SmoothingFunction
 
 
 def flatten(li):
     return [item for subli in li for item in subli]
 
 
-def prepare_sequence(seq, w2i):
-    idxs = list(map(lambda w: w2i[w]
-                if w2i.get(w) is not None else w2i['<UNK>'], seq))
-    return Variable(LT(idxs))
+def get_batch(batch_size, train_data):
+    random.shuffle(train_data)
+    sind = 0
+    eind = batch_size
+    while eind < len(train_data):
+        batch = train_data[sind:eind]
+        tmp = eind
+        eind = eind + batch_size
+        sind = tmp
+        yield batch
+
+    if eind >= len(train_data):
+        batch = train_data[sind:]
+        yield batch
 
 
 def pad_to_batch(batch, xw2i, yw2i):
@@ -53,6 +64,12 @@ def pad_to_batch(batch, xw2i, yw2i):
     return input_var, target_var, input_len, target_len
 
 
+def prepare_sequence(seq, w2i):
+    idxs = list(map(lambda w: w2i[w]
+                if w2i.get(w) is not None else w2i['<UNK>'], seq))
+    return Variable(LT(idxs))
+
+
 def prepare_batch(batch, sw2i, tw2i):
     new_batch = {'src': [], 'tgt': []}
     for s, t in zip(batch['src'], batch['tgt']):
@@ -61,6 +78,21 @@ def prepare_batch(batch, sw2i, tw2i):
         new_batch['src'].append(s_p)
         new_batch['tgt'].append(t_p)
     return new_batch
+
+
+def unicode_to_ascii(s):
+    return ''.join(
+            c for c in unicodedata.normalize('NFD', s)
+            if unicodedata.category(c) != 'Mn'
+            )
+
+
+def normalize_string(s):
+    s = unicode_to_ascii(s.lower().strip())
+    s = re.sub(r"([,.!?])", r" \1 ", s)
+    s = re.sub(r"[^a-zA-Z,.!?]+", r" ", s)
+    s = re.sub(r"\s+", r" ", s).strip()
+    return s
 
 
 def get_dataset(src_path, tgt_path):
@@ -93,9 +125,3 @@ def get_dataset(src_path, tgt_path):
 
     train_data = list(zip(X_p, Y_p))
     return train_data, sw2i, si2w, tw2i, ti2w
-
-
-def calc_bleu(ref, pred):
-    sf = SmoothingFunction().method4
-    ref = [ref]
-    return sentence_bleu(ref, pred, smoothing_function=sf)
