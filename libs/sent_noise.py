@@ -32,10 +32,12 @@ def drop_words(words, p=0.1):
     p: dropout ratio
     '''
     new_words = []
-    for word in words:
-        if random.random() < p and word not in non_drop_list:
-            continue
-        new_words.append(word)
+    while len(new_words) == 0:
+        new_words = []
+        for word in words:
+            if random.random() < p and word not in non_drop_list:
+                continue
+            new_words.append(word)
     return new_words
 
 
