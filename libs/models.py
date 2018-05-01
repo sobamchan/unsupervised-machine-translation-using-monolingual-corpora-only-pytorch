@@ -1,6 +1,7 @@
 import torch
-from torch.autograd import Variable
 import torch.nn as nn
+from torch.autograd import Variable
+from torch import LongTensor
 from torch.nn.utils.rnn import pack_padded_sequence
 from torch.nn.utils.rnn import pad_packed_sequence
 import torch.nn.functional as F
@@ -13,7 +14,8 @@ class Embedder(nn.Module):
         self.vocab_n = vocab_n
         self.embedding_dim = embedding_dim
         self.padding_idx = padding_idx
-        self.embedding = nn.Embedding(vocab_n, embedding_dim, padding_idx)
+        # self.embedding = nn.Embedding(vocab_n, embedding_dim, padding_idx)
+        self.embedding = nn.Embedding(vocab_n, embedding_dim)
 
     def forward(self, x):
         return self.embedding(x)
@@ -21,144 +23,149 @@ class Embedder(nn.Module):
 
 class Encoder(nn.Module):
 
-    def __init__(self, vocab_n, embedding_dim, padding_idx, dropout_p,
-                 hidden_n, num_layers, bidirectional, use_cuda):
+    def __init__(self, input_size, embedding_size,
+                 hidden_size, n_layers=1, bidirec=False, use_cuda=True):
         super(Encoder, self).__init__()
-        self.embedding_dim = embedding_dim
-        self.hidden_n = hidden_n
-        self.use_cuda = use_cuda
-        self.num_layers = num_layers
-        self.bidirectional = bidirectional
 
-        self.dropout = nn.Dropout2d(dropout_p)
-        self.gru = nn.GRU(embedding_dim,
-                          hidden_n,
-                          num_layers,
-                          batch_first=True,
-                          bidirectional=bidirectional)
+        self.input_size = input_size
+        self.hidden_size = hidden_size
+        self.n_layers = n_layers
+        self.use_cuda = use_cuda
+
+        if bidirec:
+            self.n_direction = 2
+            self.gru = nn.GRU(embedding_size,
+                              hidden_size,
+                              n_layers,
+                              batch_first=True,
+                              bidirectional=True)
+        else:
+            self.n_direction = 1
+            self.gru = nn.GRU(embedding_size,
+                              hidden_size,
+                              n_layers,
+                              batch_first=True)
 
     def init_hidden(self, inputs):
-        dim = self.num_layers * 2 if self.bidirectional else self.num_layers
-        batch_size = inputs.size(0)
-        hidden = torch.zeros(dim, batch_size, self.hidden_n)
-        hidden = Variable(hidden)
+        hidden = Variable(torch.zeros(self.n_layers * self.n_direction,
+                                      inputs.size(0),
+                                      self.hidden_size))
         return hidden.cuda() if self.use_cuda else hidden
 
-    def forward(self, embedder, src_sents, src_lens):
-        x = embedder(src_sents)
-        x = self.dropout(x)
-        hidden = self.init_hidden(x)
-        x = pack_padded_sequence(x, src_lens, batch_first=True)
-        outputs, hidden = self.gru(x, hidden)
-        outputs, _ = pad_packed_sequence(outputs, batch_first=True)
+    def init_weight(self):
+        self.gru.weight_hh_l0 = nn.init.xavier_uniform(self.gru.weight_hh_l0)
+        self.gru.weight_ih_l0 = nn.init.xavier_uniform(self.gru.weight_ih_l0)
 
-        if self.num_layers > 1:
-            if self.bidirectional:
+    def forward(self, embedder, inputs, input_lengths):
+        hidden = self.init_hidden(inputs)
+        embedded = embedder(inputs)
+        packed = pack_padded_sequence(embedded,
+                                      input_lengths,
+                                      batch_first=True)
+        outputs, hidden = self.gru(packed, hidden)
+        outputs, output_lengths = pad_packed_sequence(outputs,
+                                                      batch_first=True)
+
+        if self.n_layers > 1:
+            if self.n_direction == 2:
                 hidden = hidden[-2:]
             else:
                 hidden = hidden[-1]
-
-        return outputs, hidden
+        return outputs, torch.cat([h for h in hidden], 1).unsqueeze(1)
 
 
 class Decoder(nn.Module):
 
-    def __init__(self, vocab_n, embedding_dim, padding_idx, dropout_p,
-                 hidden_n, num_layers, bidirectional, use_cuda):
+    def __init__(self, input_size, embedding_size, hidden_size,
+                 n_layers=1, dropout_p=0.1, use_cuda=True):
         super(Decoder, self).__init__()
-        self.use_cuda = use_cuda
-        self.num_layers = num_layers
-        self.hidden_n = hidden_n
-        self.bidirectional = bidirectional
 
-        self.dropout = nn.Dropout2d(dropout_p)
-        if self.bidirectional:
-            gru_input_dim = embedding_dim + hidden_n * 2
-        else:
-            gru_input_dim = embedding_dim + hidden_n
-        self.gru = nn.GRU(gru_input_dim,
-                          hidden_n,
-                          num_layers,
-                          batch_first=True,
-                          bidirectional=bidirectional)
-        if bidirectional:
-            self.proj = nn.Linear(hidden_n * 2 + hidden_n * 2, vocab_n)
-            self.attention = nn.Linear(hidden_n * 2, hidden_n * 2)
-        else:
-            self.proj = nn.Linear(hidden_n * 2, vocab_n)
-            self.attention = nn.Linear(hidden_n, hidden_n)
+        self.hidden_size = hidden_size
+        self.n_layers = n_layers
+        self.use_cuda = use_cuda
+
+        self.dropout = nn.Dropout(dropout_p)
+
+        self.gru = nn.GRU(embedding_size + hidden_size,
+                          hidden_size,
+                          n_layers,
+                          batch_first=True)
+        self.linear = nn.Linear(hidden_size * 2, input_size)
+        self.attn = nn.Linear(self.hidden_size, self.hidden_size)
 
     def init_hidden(self, inputs):
-        dim = self.num_layers * 2 if self.bidirectional else self.num_layers
-        batch_size = inputs.size(0)
-        hidden = torch.zeros(dim, batch_size, self.hidden_n)
-        hidden = Variable(hidden)
+        hidden = Variable(torch.zeros(self.n_layers,
+                                      inputs.size(0),
+                                      self.hidden_size))
         return hidden.cuda() if self.use_cuda else hidden
 
-    def forward(self, embedder, start_id, enc_outputs, context, dec_max_len):
-        '''
-        in:
-          start_id: int
-          enc_outputs: B, S, H
-          context: direction_n, B, H
-        '''
-        batch_size = enc_outputs.size(0)
-        start = Variable(torch.LongTensor([[start_id]] * batch_size))
-        if self.use_cuda:
-            start = start.cuda()
-        hidden = self.init_hidden(enc_outputs)
-        embedded = embedder(start)
-        context = context.transpose(0, 1)  # B, direction_n, H
-        preds = []
-        for i in range(dec_max_len):
-            embedded = self.dropout(embedded)  # B, 1, H
-            gru_input =\
-                torch.cat([embedded, context], 1)  # B, 1 + direction_n, H
-            gru_input = gru_input.view(batch_size,
-                                       1,
-                                       -1)  # B, 1, 1 + direction_n*H
+    def init_weight(self):
+        self.gru.weight_hh_l0 = nn.init.xavier_uniform(self.gru.weight_hh_l0)
+        self.gru.weight_ih_l0 = nn.init.xavier_uniform(self.gru.weight_ih_l0)
+        self.linear.weight = nn.init.xavier_uniform(self.linear.weight)
+        self.attn.weight = nn.init.xavier_uniform(self.attn.weight)
 
-            _, hidden = self.gru(gru_input,
-                                 hidden)
-            # hidden: num_layers*direction_n, B, H
+    def Attention(self, hidden, encoder_outputs, encoder_masking):
+        hidden = hidden[0].unsqueeze(2)
+        batch_size = encoder_outputs.size(0)
+        max_len = encoder_outputs.size(1)
+        energies = self.attn(encoder_outputs.contiguous()
+                             .view(batch_size * max_len, -1))
+        energies = energies.view(batch_size, max_len, -1)
+        attn_energies = energies.bmm(hidden).squeeze(2)
 
-            last_hidden = hidden[-2:]\
-                if self.bidirectional else hidden[-1]
-            last_hidden = last_hidden.transpose(0, 1)
-            # hidden: B, direction_n, H
+        alpha = F.softmax(attn_energies, 1)
+        alpha = alpha.unsqueeze(1)
+        context = alpha.bmm(encoder_outputs)
 
-            context = context.contiguous()
-            last_hidden = last_hidden.contiguous().view(batch_size, -1)
-            cat = torch.cat((last_hidden, context.view(batch_size, -1)), 1)
-
-            pred = self.proj(cat.contiguous().view(batch_size, -1))  # B, V
-            pred = F.log_softmax(pred, 1)
-            preds.append(pred)
-
-            embedded = embedder(pred.max(1)[1]).unsqueeze(1)
-
-            context, alpha = self.calc_attention(enc_outputs, last_hidden)
-        preds = torch.cat(preds, 1).view(batch_size * dec_max_len, -1)
-        return preds
-
-    def calc_attention(self, enc_outputs, hidden):
-        '''
-        in:
-          enc_outputs: B, S, H
-          hidden: B, H*direction_n
-        '''
-        batch_size = enc_outputs.size(0)
-        enc_outputs = enc_outputs.contiguous()
-        hidden = hidden.unsqueeze(1)  # 1, B, H*direction_n
-        batch_size, seq_len, _ = enc_outputs.size()
-        eng = self.attention(
-                enc_outputs.view(batch_size * seq_len, -1))  # B*S, H
-        eng = eng.view(batch_size, seq_len, -1)  # B, S, H
-        eng = torch.bmm(eng, hidden.transpose(1, 2))  # B, S, 1
-        eng = eng.squeeze(2)  # B, S
-        alpha = F.softmax(eng, 1)
-        alpha = alpha.unsqueeze(1)  # B, 1, S
-        context = torch.bmm(alpha, enc_outputs)  # B, 1, H
-        if self.bidirectional:
-            context = context.view(batch_size, 2, -1)
         return context, alpha
+
+    def forward(self, embedder, inputs, context, max_length, encoder_outputs,
+                encoder_masking=False, is_training=False):
+        embedded = embedder(inputs)
+        hidden = self.init_hidden(inputs)
+        if is_training:
+            embedded = self.dropout(embedded)
+
+        decode = []
+        for i in range(max_length):
+            _, hidden = self.gru(torch.cat((embedded, context), 2), hidden)
+            if self.n_layers > 1:
+                new_hidden = hidden[-1].unsqueeze(0)
+            else:
+                new_hidden = hidden
+            concated = torch.cat((new_hidden, context.transpose(0, 1)), 2)
+            score = self.linear(concated.squeeze(0))
+            softmaxed = F.log_softmax(score, 1)
+            decode.append(softmaxed)
+            decoded = softmaxed.max(1)[1]
+            embedded = embedder(decoded).unsqueeze(1)
+            if is_training:
+                embedded = self.dropout(embedded)
+            context, alpha = self.Attention(new_hidden,
+                                            encoder_outputs,
+                                            encoder_masking)
+
+        scores = torch.cat(decode, 1)
+        return scores.view(inputs.size(0) * max_length, -1)
+
+    def decode(self, embedder, context, encoder_outputs, w2i):
+        start_decode = Variable(LongTensor([[w2i['<s>']] * 1])).transpose(0, 1)
+        embedded = embedder(start_decode)
+        hidden = self.init_hidden(start_decode)
+
+        decodes = []
+        attentions = []
+        decoded = embedded
+        while decoded.data.tolist()[0] != w2i['</s>']:
+            _, hidden = self.gru(torch.cat((embedded, context), 2), hidden)
+            concated = torch.cat((hidden, context.transpose(0, 1)), 2)
+            score = self.linear(concated.squeeze(0))
+            softmaxed = F.log_softmax(score, 1)
+            decodes.append(softmaxed)
+            decoded = softmaxed.max(1)[1]
+            embedded = embedder(decoded).unsqueeze(1)
+            context, alpha = self.Attention(hidden, encoder_outputs, None)
+            attentions.append(alpha.squeeze(1))
+
+        return torch.cat(decodes).max(1)[1], torch.cat(attentions)

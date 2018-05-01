@@ -1,8 +1,8 @@
 import numpy as np
 import torch
 from torch.autograd import Variable
+from torch import LongTensor as LT
 import torch.optim as optim
-import torch.nn.functional as F
 from tqdm import tqdm
 from libs.dataset import get_dataloaders
 from libs import utils
@@ -24,49 +24,43 @@ class Trainer:
         self.train_dataloader = train_dataloader
         self.test_dataloader = test_dataloader
 
-        self.src_vocab = self.train_dataloader.dataset.src_vocab
-        self.src_w2i = self.train_dataloader.dataset.src_w2i
-        self.src_i2w = self.train_dataloader.dataset.src_i2w
-        self.tgt_vocab = self.train_dataloader.dataset.tgt_vocab
-        self.tgt_w2i = self.train_dataloader.dataset.tgt_w2i
-        self.tgt_i2w = self.train_dataloader.dataset.tgt_i2w
+        self.sw2i = self.train_dataloader.dataset.sw2i
+        self.si2w = self.train_dataloader.dataset.si2w
+        self.tw2i = self.train_dataloader.dataset.tw2i
+        self.ti2w = self.train_dataloader.dataset.ti2w
         vocab_objs = {
                 'tgt': {
-                    'vocab': self.tgt_vocab,
-                    'w2i': self.tgt_w2i,
-                    'i2w': self.tgt_i2w
+                    # 'vocab': self.tgt_vocab,
+                    'w2i': self.tw2i,
+                    'i2w': self.ti2w
                     },
                 'src': {
-                    'vocab': self.src_vocab,
-                    'w2i': self.src_w2i,
-                    'i2w': self.src_i2w
+                    # 'vocab': self.src_vocab,
+                    'w2i': self.sw2i,
+                    'i2w': self.si2w
                     }
                 }
         self.vocab_objs = vocab_objs
 
         # model
-        encoder = models.Encoder(len(self.src_vocab),
+        encoder = models.Encoder(len(self.sw2i),
                                  args.src_embedding_size,
-                                 self.src_w2i['<PAD>'],
-                                 args.encoder_dropout_p,
                                  args.encoder_hidden_n,
                                  args.encoder_num_layers,
                                  args.encoder_bidirectional,
                                  args.use_cuda)
-        decoder = models.Decoder(len(self.tgt_vocab),
+        decoder = models.Decoder(len(self.tw2i),
                                  args.tgt_embedding_size,
-                                 self.tgt_w2i['<PAD>'],
-                                 args.decoder_dropout_p,
                                  args.decoder_hidden_n,
                                  args.decoder_num_layers,
-                                 args.decoder_bidirectional,
+                                 args.decoder_dropout_p,
                                  args.use_cuda)
-        src_embedder = models.Embedder(len(self.src_vocab),
+        src_embedder = models.Embedder(len(self.sw2i),
                                        args.src_embedding_size,
-                                       self.src_w2i['<PAD>'])
-        tgt_embedder = models.Embedder(len(self.tgt_vocab),
+                                       self.sw2i['<PAD>'])
+        tgt_embedder = models.Embedder(len(self.tw2i),
                                        args.tgt_embedding_size,
-                                       self.tgt_w2i['<PAD>'])
+                                       self.tw2i['<PAD>'])
         if args.use_cuda:
             encoder.cuda()
             decoder.cuda()
@@ -83,10 +77,12 @@ class Trainer:
         self.src_emb_optim = optim.SGD(self.src_embedder.parameters(), args.lr)
         self.tgt_emb_optim = optim.SGD(self.tgt_embedder.parameters(), args.lr)
 
+        self.loss_func = torch.nn.CrossEntropyLoss(ignore_index=0)
+
     def train_one_epoch(self, log_dict):
-        args = self.args
-        src_w2i = self.src_w2i
-        tgt_w2i = self.tgt_w2i
+        sw2i = self.sw2i
+        tw2i = self.tw2i
+        ti2w = self.ti2w
         self.encoder.train()
         self.decoder.train()
         self.src_embedder.train()
@@ -94,39 +90,34 @@ class Trainer:
 
         losses = []
         for batch in tqdm(self.train_dataloader):
+            batch = utils.prepare_batch(batch, sw2i, tw2i)
+            inputs, targets, input_lengths, target_lengths =\
+                utils.pad_to_batch(batch, sw2i, tw2i)
+            start_decode =\
+                Variable(LT([[tw2i['<s>']] * targets.size(0)])).transpose(0, 1)
 
             self.encoder.zero_grad()
             self.decoder.zero_grad()
             self.src_embedder.zero_grad()
             self.tgt_embedder.zero_grad()
 
-            src_sents = batch['src']
-            tgt_sents = batch['tgt']
-            src_sents = [utils.convert_s2i(sent, src_w2i)
-                         for sent in src_sents]
-            tgt_sents = [utils.convert_s2i(sent, tgt_w2i)
-                         for sent in tgt_sents]
-            src_sents, tgt_sents, src_lens, tgt_lens =\
-                utils.pad_batch(src_sents,
-                                tgt_sents,
-                                src_w2i['<PAD>'],
-                                tgt_w2i['<PAD>'])
+            if self.args.use_cuda:
+                inputs = inputs.cuda()
+                targets = targets.cuda()
+                start_decode = start_decode.cuda()
 
-            src_sents = Variable(torch.LongTensor(src_sents))
-            tgt_sents = Variable(torch.LongTensor(tgt_sents))
-            if args.use_cuda:
-                src_sents = src_sents.cuda()
-                tgt_sents = tgt_sents.cuda()
-
-            outputs, hidden = self.encoder(self.src_embedder,
-                                           src_sents,
-                                           src_lens)
+            output, hidden_c = self.encoder(self.src_embedder,
+                                            inputs,
+                                            input_lengths)
             preds = self.decoder(self.tgt_embedder,
-                                 self.tgt_w2i['<s>'],
-                                 outputs,
-                                 hidden,
-                                 tgt_sents.size(1))
-            loss = F.cross_entropy(preds, tgt_sents.view(-1))
+                                 start_decode,
+                                 hidden_c,
+                                 targets.size(1),
+                                 output,
+                                 None,
+                                 True)
+            loss = self.loss_func(preds,
+                                  targets.view(-1))
             loss.backward()
             self.enc_optim.step()
             self.dec_optim.step()
@@ -134,12 +125,16 @@ class Trainer:
             self.tgt_emb_optim.step()
             log_dict['train_losses'].append(loss.data[0])
             losses.append(loss.data[0])
-        print(np.mean(losses))
+        print('train loss %f' % np.mean(losses))
+        preds = preds.view(inputs.size(0), targets.size(1), -1)
+        preds_max = torch.max(preds, 2)[1]
+        print(' '.join([ti2w[p] for p in preds_max.data[0].tolist()]))
+        print(' '.join([ti2w[p] for p in preds_max.data[1].tolist()]))
 
     def translation_validate(self):
         args = self.args
-        src_w2i = self.src_w2i
-        tgt_w2i = self.tgt_w2i
+        sw2i = self.sw2i
+        tw2i = self.tw2i
         self.encoder.eval()
         self.decoder.eval()
 
@@ -149,15 +144,15 @@ class Trainer:
 
             src_sents = batch['src']
             tgt_sents = batch['tgt']
-            src_sents = [utils.convert_s2i(sent, src_w2i)
+            src_sents = [utils.convert_s2i(sent, sw2i)
                          for sent in src_sents]
-            tgt_sents = [utils.convert_s2i(sent, tgt_w2i)
+            tgt_sents = [utils.convert_s2i(sent, tw2i)
                          for sent in tgt_sents]
             src_sents, tgt_sents, src_lens, tgt_lens =\
                 utils.pad_batch(src_sents,
                                 tgt_sents,
-                                src_w2i['<PAD>'],
-                                tgt_w2i['<PAD>'])
+                                sw2i['<PAD>'],
+                                tw2i['<PAD>'])
 
             src_sents = Variable(torch.LongTensor(src_sents), volatile=True)
             tgt_sents = Variable(torch.LongTensor(tgt_sents), volatile=True)
@@ -169,12 +164,13 @@ class Trainer:
                                            src_sents,
                                            src_lens)
             preds = self.decoder(self.tgt_embedder,
-                                 self.tgt_w2i['<s>'],
+                                 self.tw2i['<s>'],
                                  outputs,
                                  hidden,
                                  tgt_sents.size(1))
 
-            loss = F.cross_entropy(preds, tgt_sents.view(-1))
+            loss = self.loss_func(preds,
+                                  tgt_sents.view(-1))
             losses.append(loss.data[0])
 
             batch_size = len(batch['src'])
@@ -192,8 +188,8 @@ class Trainer:
         print('sample translation')
         print('source: %s' % batch['src'][0])
         print('target: %s' % batch['tgt'][0])
-        tgt_i2w = self.tgt_i2w
-        print('prediction: %s' % [tgt_i2w[i.data[0]] for i in preds[0]])
+        ti2w = self.ti2w
+        print('prediction: %s' % [ti2w[i.data[0]] for i in preds[0]])
         print('test loss %f' % np.mean(losses))
         print('test accuracy %f' % np.mean(accs))
 
@@ -203,8 +199,8 @@ class Trainer:
           subj: string src or tgt
         '''
         args = self.args
-        src_w2i = self.src_w2i
-        tgt_w2i = self.tgt_w2i
+        sw2i = self.sw2i
+        tw2i = self.tw2i
 
         losses = []
         for batch in tqdm(self.train_dataloader):
@@ -214,15 +210,15 @@ class Trainer:
 
             src_sents = batch['src']
             tgt_sents = batch['tgt']
-            src_sents = [utils.convert_s2i(sent, src_w2i)
+            src_sents = [utils.convert_s2i(sent, sw2i)
                          for sent in src_sents]
-            tgt_sents = [utils.convert_s2i(sent, tgt_w2i)
+            tgt_sents = [utils.convert_s2i(sent, tw2i)
                          for sent in tgt_sents]
             src_sents, tgt_sents, src_lens, tgt_lens =\
                 utils.pad_batch(src_sents,
                                 tgt_sents,
-                                src_w2i['<PAD>'],
-                                tgt_w2i['<PAD>'])
+                                sw2i['<PAD>'],
+                                tw2i['<PAD>'])
 
             src_sents = Variable(torch.LongTensor(src_sents))
             tgt_sents = Variable(torch.LongTensor(tgt_sents))
@@ -234,11 +230,12 @@ class Trainer:
                                            src_sents,
                                            src_lens)
             preds = self.decoder(self.tgt_embedder,
-                                 self.tgt_w2i['<s>'],
+                                 self.tw2i['<s>'],
                                  outputs,
                                  hidden,
                                  tgt_sents.size(1))
-            loss = F.cross_entropy(preds, tgt_sents.view(-1))
+            loss = self.loss_func(preds,
+                                  tgt_sents.view(-1))
             loss.backward()
             self.enc_optim.step()
             self.dec_optim.step()

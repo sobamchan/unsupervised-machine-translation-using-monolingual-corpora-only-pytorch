@@ -9,7 +9,9 @@ from libs.trainer import Trainer
 def get_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--gpu-id', type=int, default=2)
-    parser.add_argument('--data-dir', type=str, default='../DATA/giga-fren')
+    parser.add_argument('--data-dir',
+                        type=str,
+                        default='../DATA/small-europarl-v7')
     parser.add_argument('--output-dir',
                         type=str,
                         default='./test')
@@ -21,13 +23,13 @@ def get_args():
 
     parser.add_argument('--src-vocab-size', type=int, default=30000)
     parser.add_argument('--tgt-vocab-size', type=int, default=30000)
-    parser.add_argument('--src-embedding-size', type=int, default=256)
+    parser.add_argument('--src-embedding-size', type=int, default=512)
     parser.add_argument('--encoder-dropout-p', type=float, default=0.1)
-    parser.add_argument('--encoder-hidden-n', type=int, default=256)
+    parser.add_argument('--encoder-hidden-n', type=int, default=512)
     parser.add_argument('--encoder-num-layers', type=int, default=1)
-    parser.add_argument('--tgt-embedding-size', type=int, default=256)
+    parser.add_argument('--tgt-embedding-size', type=int, default=512)
     parser.add_argument('--decoder-dropout-p', type=float, default=0.1)
-    parser.add_argument('--decoder-hidden-n', type=int, default=256)
+    parser.add_argument('--decoder-hidden-n', type=int, default=512)
     parser.add_argument('--decoder-num-layers', type=int, default=1)
     parser.add_argument('--lr', type=float, default=0.001)
     parser.add_argument('--use-cuda', type=strtobool, default='1')
@@ -48,7 +50,7 @@ def main(args):
                     'train_losses': [],  # per batch
                     'test_bleus': []}   # per sample
         trainer.train_one_epoch(log_dict)
-        trainer.translation_validate()
+        # trainer.translation_validate()
 
         # evaluation and logging
         # evaluator.bleu(log_dict)

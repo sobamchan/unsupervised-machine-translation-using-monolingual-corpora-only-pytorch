@@ -1,60 +1,98 @@
-import numpy as np
+from collections import Counter
+import torch
+from torch.autograd import Variable
+from torch import LongTensor as LT
 from nltk.translate.bleu_score import sentence_bleu
 from nltk.translate.bleu_score import SmoothingFunction
 
 
-def pad_batch(src_sents, tgt_sents, src_pad_id, tgt_pad_id):
-    '''
-    in:
-      src_sents: list of word ids
-    '''
+def flatten(li):
+    return [item for subli in li for item in subli]
 
-    src_max_len = max([len(src_sent) for src_sent in src_sents])
-    tgt_max_len = max([len(tgt_sent) for tgt_sent in tgt_sents])
-    pad_src_sents = []
-    pad_tgt_sents = []
-    src_lens = []
-    tgt_lens = []
-    for src_sent, tgt_sent in zip(src_sents, tgt_sents):
-        src_sent_len = len(src_sent)
-        src_lens.append(src_sent_len)
-        if src_sent_len < src_max_len:
-            pad_src_sent =\
-                src_sent + [src_pad_id] * (src_max_len - src_sent_len)
+
+def prepare_sequence(seq, w2i):
+    idxs = list(map(lambda w: w2i[w]
+                if w2i.get(w) is not None else w2i['<UNK>'], seq))
+    return Variable(LT(idxs))
+
+
+def pad_to_batch(batch, xw2i, yw2i):
+    src, tgt = batch['src'], batch['tgt']
+    batch = list(zip(src, tgt))
+    sorted_batch = sorted(batch,
+                          key=lambda b: b[0].size(1),
+                          reverse=True)
+    x, y = list(zip(*sorted_batch))
+    max_x = max([s.size(1) for s in x])
+    max_y = max([s.size(1) for s in y])
+    x_p, y_p = [], []
+    for i in range(len(batch)):
+        if x[i].size(1) < max_x:
+            x_p.append(torch.cat([x[i],
+                                 Variable(LT([xw2i['<PAD>']]
+                                          * (max_x - x[i].size(1))))
+                                 .view(1, -1)], 1))
         else:
-            pad_src_sent = src_sent
-        pad_src_sents.append(pad_src_sent)
+            x_p.append(x[i])
 
-        tgt_sent_len = len(tgt_sent)
-        tgt_lens.append(tgt_sent_len)
-        if tgt_sent_len < tgt_max_len:
-            pad_tgt_sent =\
-                tgt_sent + [tgt_pad_id] * (tgt_max_len - tgt_sent_len)
+        if y[i].size(1) < max_y:
+            y_p.append(torch.cat([y[i],
+                                 Variable(LT([yw2i['<PAD>']]
+                                          * (max_y - y[i].size(1))))
+                                 .view(1, -1)], 1))
         else:
-            pad_tgt_sent = tgt_sent
-        pad_tgt_sents.append(pad_tgt_sent)
+            y_p.append(y[i])
 
-    pad_src_sents =\
-        np.array(pad_src_sents)[np.argsort(src_lens)[::-1]].tolist()
-    pad_tgt_sents =\
-        np.array(pad_tgt_sents)[np.argsort(tgt_lens)[::-1]].tolist()
-    src_lens = sorted(src_lens, reverse=True)
-    tgt_lens = sorted(tgt_lens, reverse=True)
+    input_var = torch.cat(x_p)
+    target_var = torch.cat(y_p)
+    input_len = [list(map(lambda s: s == 0, t.data)).count(False)
+                 for t in input_var]
+    target_len = [list(map(lambda s: s == 0, t.data)).count(False)
+                  for t in target_var]
 
-    return pad_src_sents, pad_tgt_sents, src_lens, tgt_lens
+    return input_var, target_var, input_len, target_len
 
 
-def convert_s2i(sent, w2i):
-    '''
-    convert string sentence to list of ids
-    '''
-    seq = []
-    for word in sent.split():
-        if word in w2i.keys():
-            seq.append(w2i[word])
-        else:
-            seq.append(w2i['<UNK>'])
-    return seq
+def prepare_batch(batch, sw2i, tw2i):
+    new_batch = {'src': [], 'tgt': []}
+    for s, t in zip(batch['src'], batch['tgt']):
+        s_p = prepare_sequence(s.split(), sw2i).view(1, -1)
+        t_p = prepare_sequence(t.split(), tw2i).view(1, -1)
+        new_batch['src'].append(s_p)
+        new_batch['tgt'].append(t_p)
+    return new_batch
+
+
+def get_dataset(src_path, tgt_path):
+    src_sents = open(src_path, 'r', encoding='utf-8').readlines()
+    tgt_sents = open(tgt_path, 'r', encoding='utf-8').readlines()
+
+    X_r = [s.split() for s in src_sents]
+    Y_r = [s.split() for s in tgt_sents]
+    src_vocab = Counter(list(set(flatten(X_r))))
+    src_vocab = [cnt[0] for cnt in src_vocab.most_common(30000)]
+    tgt_vocab = Counter(list(set(flatten(Y_r))))
+    tgt_vocab = [cnt[0] for cnt in tgt_vocab.most_common(30000)]
+
+    sw2i = {'<PAD>': 0, '<UNK>': 1, '<s>': 2, '</s>': 3}
+    for vo in src_vocab:
+        if sw2i.get(vo) is None:
+            sw2i[vo] = len(sw2i)
+    si2w = {v: k for k, v in sw2i.items()}
+
+    tw2i = {'<PAD>': 0, '<UNK>': 1, '<s>': 2, '</s>': 3}
+    for vo in tgt_vocab:
+        if tw2i.get(vo) is None:
+            tw2i[vo] = len(tw2i)
+    ti2w = {v: k for k, v in tw2i.items()}
+
+    X_p, Y_p = [], []
+    for s, t in zip(X_r, Y_r):
+        X_p.append(prepare_sequence(s + ['</s>'], sw2i).view(1, -1))
+        Y_p.append(prepare_sequence(t + ['</s>'], tw2i).view(1, -1))
+
+    train_data = list(zip(X_p, Y_p))
+    return train_data, sw2i, si2w, tw2i, ti2w
 
 
 def calc_bleu(ref, pred):
