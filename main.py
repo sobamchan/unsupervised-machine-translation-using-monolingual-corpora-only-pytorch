@@ -8,7 +8,7 @@ from libs.trainer import Trainer
 
 def get_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--gpu-id', type=int, default=2)
+    parser.add_argument('--gpu-id', type=int, default=0)
     parser.add_argument('--data-dir',
                         type=str,
                         default='../DATA/small-europarl-v7')
