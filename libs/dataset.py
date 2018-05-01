@@ -8,8 +8,14 @@ from libs import utils
 def get_dataset(src_path, tgt_path):
     src_sents = open(src_path, 'r', encoding='utf-8').readlines()
     tgt_sents = open(tgt_path, 'r', encoding='utf-8').readlines()
-    x = [s.lower().split() for s in src_sents]
-    y = [s.lower().split() for s in tgt_sents]
+    if src_path.find('ja') == -1:
+        x = [utils.normalize_string(s).split() for s in src_sents]
+    else:
+        x = [s.lower().split() for s in src_sents]
+    if tgt_path.find('ja') == -1:
+        y = [utils.normalize_string(s).split() for s in tgt_sents]
+    else:
+        y = [s.lower().split() for s in tgt_sents]
     return x, y
 
 
