@@ -4,10 +4,11 @@ import torch.nn as nn
 import torch.optim as optim
 from torch import LongTensor as LT
 from torch.autograd import Variable
+from tqdm import tqdm
 from libs import models
 from libs import utils
 from libs.dataset import get_dataloaders
-from tqdm import tqdm
+from libs import sent_noise
 
 
 class Trainer:
@@ -151,7 +152,13 @@ class Trainer:
         embedder_optim = self.optims[obj]
         losses = []
         for batch in tqdm(self.train_dataloader):
+
+            # add noise
+            batch[obj] = [sent_noise.run(s) for s in batch[obj]]
+
+            # convert string to ids
             batch = utils.prepare_batch(batch, sw2i, tw2i)
+
             if obj == 'src':
                 inputs, _, input_lengths, _ =\
                     utils.pad_to_batch(batch, sw2i, tw2i)
