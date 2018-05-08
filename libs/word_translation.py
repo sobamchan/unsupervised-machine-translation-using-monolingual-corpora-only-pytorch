@@ -55,12 +55,6 @@ if __name__ == '__main__':
                         type=str,
                         default='input/vectors-fr-vocab.txt',
                         help='txt file')
-    parser.add_argument('--src-vocab-size',
-                        type=int,
-                        default=int(1e+10))
-    parser.add_argument('--tgt-vocab-size',
-                        type=int,
-                        default=int(1e+10))
     args = parser.parse_args()
 
     envec = np.load(args.src_vec_file)
@@ -69,9 +63,9 @@ if __name__ == '__main__':
         enwords = [line.strip() for line in f.readlines()]
     with open(args.tgt_vocab_file) as f:
         frwords = [line.strip() for line in f.readlines()]
-    envocab = Vocabulary(args.src_vocab_size)
+    envocab = Vocabulary(envec.shape[0])
     envocab.build_vocab_from_words(enwords)
-    frvocab = Vocabulary(args.tgt_vocab_size)
+    frvocab = Vocabulary(frvec.shape[0])
     frvocab.build_vocab_from_words(frwords)
 
     WT = WordTranslator(envec, envocab, frvec, frvocab)
