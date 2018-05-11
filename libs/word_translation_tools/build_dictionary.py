@@ -54,6 +54,6 @@ def from_npy_file():
 
     dic = {}
     for idx1, idx2 in enumerate(idxs):
-        dic[vocab1[idx1]] = vocab2[idx2]
+        dic[vocab1[idx1].strip()] = vocab2[idx2].strip()
 
     return dic
