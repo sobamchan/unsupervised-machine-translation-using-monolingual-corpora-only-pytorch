@@ -42,12 +42,18 @@ def from_npy_file():
 
     vecs1 = np.load('./input/vectors-en.npy')
     vecs2 = np.load('./input/vectors-fr.npy')
+    vocab1 = open('./input/vectors-en-vocab.txt').readlines()
+    vocab2 = open('./input/vectors-fr-vocab.txt').readlines()
 
-    b = 256
+    b = 4096
     idxs = []
-    for i in range(0, len(vecs1), b):
+    for i in tqdm(range(0, len(vecs1), b)):
         scores = np.dot(vecs1[i:i+256], vecs2.transpose())  # b, len(vecs2)
         part_idxs = np.argmax(scores, 1)  # b
-        idxs.append(part_idxs)
+        idxs += part_idxs.tolist()
 
-    return idxs
+    dic = {}
+    for idx1, idx2 in enumerate(idxs):
+        dic[vocab1[idx1]] = vocab2[idx2]
+
+    return dic
