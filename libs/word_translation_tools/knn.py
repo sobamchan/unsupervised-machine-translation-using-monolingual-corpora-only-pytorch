@@ -1,4 +1,5 @@
 import io
+import argparse
 import numpy as np
 from tqdm import tqdm
 
@@ -59,6 +60,16 @@ def translate_file(src_file, swap=False):
     return pred_lines
 
 
+def translate_and_output():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--output-path', type=str, required=True)
+    parser.add_argument('--input-path', type=str, required=True)
+    args = parser.parse_args()
+    result_lines = translate_file(args.input_path)
+    with open(args.output_path, 'w') as f:
+        f.write('\n'.join(result_lines) + '\n')
+
+
 def main(swap=False):
     if not swap:
         src_path = './input/vectors-en.txt'
@@ -70,3 +81,7 @@ def main(swap=False):
     s_embs, si2w, sw2i = load_vec(src_path, nmax)
     t_embs, ti2w, tw2i = load_vec(tgt_path, nmax)
     return s_embs, si2w, sw2i, t_embs, ti2w, tw2i
+
+
+if __name__ == '__main__':
+    translate_and_output()
