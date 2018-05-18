@@ -49,25 +49,30 @@ def translate(words, sembs, si2w, tembs, ti2w):
     return translated_words
 
 
-def translate_file(src_file, swap=False):
-    s_embs, si2w, sw2i, t_embs, ti2w, tw2i = main(swap)
-    s_lines = open(src_file).readlines()
-    pred_lines = []
-    for s_line in tqdm(s_lines):
-        s_words = s_line.lower().split()
-        pred_words = translate(s_words, s_embs, si2w, t_embs, ti2w)
-        pred_lines.append(' '.join(pred_words))
-    return pred_lines
-
-
 def translate_and_output():
     parser = argparse.ArgumentParser()
     parser.add_argument('--output-path', type=str, required=True)
     parser.add_argument('--input-path', type=str, required=True)
     args = parser.parse_args()
-    result_lines = translate_file(args.input_path)
-    with open(args.output_path, 'w') as f:
-        f.write('\n'.join(result_lines) + '\n')
+
+    src_file = args.input_path
+    out_file = args.output_path
+
+    swap = True if src_file.endswith('.fr') else False
+    s_embs, si2w, sw2i, t_embs, ti2w, tw2i = main(swap)
+    print('swap: ', swap)
+    pred_lines = []
+    f_in = open(src_file)
+    f_out = open(out_file, 'a')
+
+    for s_line in tqdm(f_in, total=50000):
+        s_words = s_line.lower().split()
+        pred_words = translate(s_words, s_embs, si2w, t_embs, ti2w)
+        pred_line = ' '.join(pred_words)
+        f_out.write(pred_line + '\n')
+        # pred_lines.append(' '.join(pred_words))
+
+    return pred_lines
 
 
 def main(swap=False):
