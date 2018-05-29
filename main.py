@@ -21,6 +21,10 @@ def get_args():
     parser.add_argument('--epoch', type=int, default=100)
     parser.add_argument('--batch-size', type=int, default=128)
 
+    parser.add_argument('--bilingual-dict-path',
+                        type=str,
+                        default='./dict-fr-to-en.json')
+
     parser.add_argument('--src-vocab-size', type=int, default=30000)
     parser.add_argument('--tgt-vocab-size', type=int, default=30000)
     parser.add_argument('--src-embedding-size', type=int, default=512)
