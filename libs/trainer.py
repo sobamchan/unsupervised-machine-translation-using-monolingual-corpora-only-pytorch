@@ -10,6 +10,7 @@ from libs import models
 from libs import utils
 from libs.dataset import get_dataloaders
 from libs import sent_noise
+from libs.word_translation_tools import bilingual_dictionary
 
 
 class Trainer:
@@ -90,6 +91,10 @@ class Trainer:
                 'src': self.src_embedder_optim,
                 'tgt': self.tgt_embedder_optim,
                 }
+
+        # Set bilingual dictionary
+        self.bi_dict =\
+            bilingual_dictionary.Dictionary(args.bilingual_dict_path)
 
     def train_one_epoch_translator(self, _from='src', _to='tgt'):
         print('%s -> %s' % (_from, _to))
@@ -200,3 +205,80 @@ class Trainer:
         preds_max = torch.max(preds, 2)[1]
         print(' '.join([i2w[p] for p in preds_max.data[0].tolist()]))
         print(' '.join([i2w[p] for p in preds_max.data[1].tolist()]))
+
+    def train_one_epoch_cross_domain(self, obj, first_iter=False):
+        non_obj = 'src' if obj == 'tgt' else 'tgt'
+        print('Calculating cross domain loss %s to %s...' % (obj, non_obj))
+        obj_w2i = self.converters[obj]['w2i']
+        obj_i2w = self.converters[obj]['i2w']
+        non_obj_w2i = self.converters[non_obj]['w2i']
+        obj_embedder = self.embedders[obj]
+        obj_embedder_optim = self.optims[obj]
+        non_obj_embedder = self.embedders[non_obj]
+        non_obj_embedder_optim = self.optims[non_obj]
+        losses = []
+
+        for batch in tqdm(self.train_dataloader):
+
+            # translate obj to non_obj with previous iter model
+            if first_iter:
+                src_to_tgt = True if obj == 'src' else False
+                naive_y =\
+                    [' '.join(self.bi_dict.translate(sent.split(),
+                                                     src_to_tgt=src_to_tgt))
+                     for sent in batch[obj]]
+            else:
+                # TODO
+                pass
+
+            noised_y = [sent_noise.run(sent) for sent in naive_y]
+
+            batch['tgt'] = batch[obj]
+            batch['src'] = noised_y
+
+            # convert string to ids
+            batch = utils.prepare_batch(batch, non_obj_w2i, obj_w2i)
+
+            inputs, targets, input_lengths, target_lengths =\
+                utils.pad_to_batch(batch, non_obj_w2i, obj_w2i)
+
+            start_decode =\
+                Variable(LT([[non_obj_w2i['<s>']] * inputs.size(0)]))\
+                .transpose(0, 1)
+            self.encoder.zero_grad()
+            self.decoder.zero_grad()
+            obj_embedder.zero_grad()
+            non_obj_embedder.zero_grad()
+
+            if self.args.use_cuda:
+                inputs = inputs.cuda()
+                targets = targets.cuda()
+                start_decode = start_decode.cuda()
+
+            output, hidden_c = self.encoder(non_obj_embedder,
+                                            inputs,
+                                            input_lengths)
+
+            preds = self.decoder(obj_embedder,
+                                 start_decode,
+                                 hidden_c,
+                                 targets.size(1),
+                                 output,
+                                 None,
+                                 True)
+
+            loss = self.loss_func(preds, targets.view(-1))
+            losses.append(loss.data[0])
+            loss.backward()
+            nn.utils.clip_grad_norm(self.encoder.parameters(), 50.0)
+            nn.utils.clip_grad_norm(self.decoder.parameters(), 50.0)
+            self.enc_optim.step()
+            self.dec_optim.step()
+            obj_embedder_optim.step()
+            non_obj_embedder_optim.step()
+
+        print(np.mean(losses))
+        preds = preds.view(inputs.size(0), targets.size(1), -1)
+        preds_max = torch.max(preds, 2)[1]
+        print(' '.join([obj_i2w[p] for p in preds_max.data[0].tolist()]))
+        print(' '.join([obj_i2w[p] for p in preds_max.data[1].tolist()]))
