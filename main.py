@@ -54,7 +54,9 @@ def main(args):
         #             'train_losses': [],  # per batch
         #             'test_bleus': []}   # per sample
         # trainer.train_one_epoch_translator()
-        trainer.train_one_epoch_autoencoder('tgt')
+
+        # trainer.train_one_epoch_autoencoder('tgt')
+        trainer.train_one_epoch_cross_domain('src', first_iter=True)
 
         # trainer.translation_validate()
 
