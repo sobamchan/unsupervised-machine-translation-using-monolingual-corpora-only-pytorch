@@ -212,6 +212,7 @@ class Trainer:
         obj_w2i = self.converters[obj]['w2i']
         obj_i2w = self.converters[obj]['i2w']
         non_obj_w2i = self.converters[non_obj]['w2i']
+        non_obj_i2w = self.converters[non_obj]['i2w']
         obj_embedder = self.embedders[obj]
         obj_embedder_optim = self.optims[obj]
         non_obj_embedder = self.embedders[non_obj]
@@ -280,5 +281,10 @@ class Trainer:
         print(np.mean(losses))
         preds = preds.view(inputs.size(0), targets.size(1), -1)
         preds_max = torch.max(preds, 2)[1]
+        print(' '.join([non_obj_i2w[p] for p in inputs.data[0].tolist()]))
         print(' '.join([obj_i2w[p] for p in preds_max.data[0].tolist()]))
+        print(' '.join([obj_i2w[p] for p in targets.data[0].tolist()]))
+
+        print(' '.join([non_obj_i2w[p] for p in inputs.data[1].tolist()]))
         print(' '.join([obj_i2w[p] for p in preds_max.data[1].tolist()]))
+        print(' '.join([obj_i2w[p] for p in targets.data[1].tolist()]))
