@@ -334,5 +334,10 @@ class Trainer:
                              True)
         preds = preds.view(inputs.size(0), max_length, -1)
         preds_max = torch.max(preds, 2)[1]
-        print(' '.join([ti2w[p] for p in preds_max.data[0].tolist()]))
-        print(' '.join([ti2w[p] for p in preds_max.data[1].tolist()]))
+
+        result_sents = []
+        for i in range(len(sents)):
+            result_sent =\
+                ' '.join([ti2w[p] for p in preds_max.data[i].tolist()])
+            result_sents.append(result_sent)
+        return result_sents
