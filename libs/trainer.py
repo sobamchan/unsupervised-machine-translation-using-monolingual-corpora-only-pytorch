@@ -288,3 +288,19 @@ class Trainer:
         print(' '.join([non_obj_i2w[p] for p in inputs.data[1].tolist()]))
         print(' '.join([obj_i2w[p] for p in preds_max.data[1].tolist()]))
         print(' '.join([obj_i2w[p] for p in targets.data[1].tolist()]))
+
+    def clip_current_model(self):
+        """
+        Clip translation model (src -> tgt, tgt -> src) parameters
+        to use in cross domain loss calculation
+        """
+        self.prev_encoder = copy.deepcopy(self.encoder)
+        self.prev_decoder = copy.deepcopy(self.decoder)
+        self.prev_embedders = {
+                'src': copy.deepcopy(self.src_embedder),
+                'tgt': copy.deepcopy(self.tgt_embedder),
+                }
+        return
+
+    def translate(self, obj, sents):
+        pass
