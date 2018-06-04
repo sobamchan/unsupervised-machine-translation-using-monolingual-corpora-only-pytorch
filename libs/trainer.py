@@ -302,7 +302,7 @@ class Trainer:
                 }
         return
 
-    def translate(self, obj, sents):
+    def translate(self, sents, obj):
         non_obj = 'src' if obj == 'tgt' else 'tgt'
         print('Translating %s -> %s...' % (non_obj, obj))
         sw2i = self.converters[non_obj]['w2i']
