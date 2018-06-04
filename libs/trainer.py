@@ -92,6 +92,16 @@ class Trainer:
                 'tgt': self.tgt_embedder_optim,
                 }
 
+        # Discriminator
+        discriminator = models.Discriminator(args.encoder_hidden_n)
+        self.disc_loss_func = nn.BCELoss()
+        if args.use_cuda:
+            self.discriminator = discriminator.cuda()
+        else:
+            self.discriminator = discriminator
+        self.disc_optim = optim.Adam(self.discriminator.parameters(),
+                                     lr=args.disc_lr)
+
         # Set bilingual dictionary
         self.bi_dict =\
             bilingual_dictionary.Dictionary(args.bilingual_dict_path)
@@ -303,7 +313,7 @@ class Trainer:
 
     def translate(self, sents, obj):
         non_obj = 'src' if obj == 'tgt' else 'tgt'
-        print('Translating %s -> %s...' % (non_obj, obj))
+        # print('Translating %s -> %s...' % (non_obj, obj))
         sw2i = self.converters[non_obj]['w2i']
         tw2i = self.converters[obj]['w2i']
         ti2w = self.converters[obj]['i2w']
@@ -343,3 +353,124 @@ class Trainer:
                 ' '.join([ti2w[p] for p in preds_max.data[i].tolist()])
             result_sents.append(result_sent)
         return result_sents
+
+    def train_one_epoch_adversarial(self):
+        dataset = self.train_dataloader.dataset
+        batch_size = self.args.batch_size // 2
+
+        # Train Discriminator
+        self.encoder.eval()
+        self.src_embedder.eval()
+        self.tgt_embedder.eval()
+        self.discriminator.train()
+        for _ in range(50):
+            indxs = np.random.permutation(len(dataset))[:batch_size]
+            srcs = np.array(dataset.src)[indxs]
+            indxs = np.random.permutation(len(dataset))[:batch_size]
+            tgts = np.array(dataset.tgt)[indxs]
+
+            # For src lang
+            batch = {'src': srcs, 'tgt': srcs}
+            batch = utils.prepare_batch(batch, self.sw2i, self.sw2i)
+            src_inputs, _, src_input_lengths, _ =\
+                utils.pad_to_batch(batch, self.sw2i, self.sw2i)
+
+            if self.args.use_cuda:
+                src_inputs = src_inputs.cuda()
+
+            _, src_output = self.encoder(self.src_embedder,
+                                         src_inputs,
+                                         src_input_lengths)
+
+            # For tgt lang
+            batch = {'src': tgts, 'tgt': tgts}
+            batch = utils.prepare_batch(batch, self.tw2i, self.tw2i)
+            tgt_inputs, _, tgt_input_lengths, _ =\
+                utils.pad_to_batch(batch, self.tw2i, self.tw2i)
+
+            if self.args.use_cuda:
+                tgt_inputs = tgt_inputs.cuda()
+
+            _, tgt_output = self.encoder(self.tgt_embedder,
+                                         tgt_inputs,
+                                         tgt_input_lengths)
+
+            # Prepare input for discriminator
+            disc_input =\
+                torch.cat([src_output.contiguous().view(batch_size, -1),
+                           tgt_output.contiguous().view(batch_size, -1)])
+
+            y = torch.FloatTensor(batch_size * 2).zero_()
+            y[:batch_size] = 1 - 0.1
+            y[batch_size:] = 0.1
+            y = Variable(y)
+
+            if self.args.use_cuda:
+                y = y.cuda()
+
+            self.discriminator.zero_grad()
+            self.disc_optim.zero_grad()
+            preds = self.discriminator(disc_input)
+            loss = self.disc_loss_func(preds, y)
+            loss.backward()
+            self.disc_optim.step()
+
+        # Train Generator (Encoder)
+        self.encoder.train()
+        self.src_embedder.train()
+        self.tgt_embedder.train()
+        self.discriminator.eval()
+        for _ in range(50):
+            indxs = np.random.permutation(len(dataset))[:batch_size]
+            srcs = np.array(dataset.src)[indxs]
+            indxs = np.random.permutation(len(dataset))[:batch_size]
+            tgts = np.array(dataset.tgt)[indxs]
+
+            # For src lang
+            batch = {'src': srcs, 'tgt': srcs}
+            batch = utils.prepare_batch(batch, self.sw2i, self.sw2i)
+            src_inputs, _, src_input_lengths, _ =\
+                utils.pad_to_batch(batch, self.sw2i, self.sw2i)
+
+            if self.args.use_cuda:
+                src_inputs = src_inputs.cuda()
+
+            _, src_output = self.encoder(self.src_embedder,
+                                         src_inputs,
+                                         src_input_lengths)
+
+            # For tgt lang
+            batch = {'src': tgts, 'tgt': tgts}
+            batch = utils.prepare_batch(batch, self.tw2i, self.tw2i)
+            tgt_inputs, _, tgt_input_lengths, _ =\
+                utils.pad_to_batch(batch, self.tw2i, self.tw2i)
+
+            if self.args.use_cuda:
+                tgt_inputs = tgt_inputs.cuda()
+
+            _, tgt_output = self.encoder(self.tgt_embedder,
+                                         tgt_inputs,
+                                         tgt_input_lengths)
+
+            # Prepare input for discriminator
+            disc_input =\
+                torch.cat([src_output.contiguous().view(batch_size, -1),
+                           tgt_output.contiguous().view(batch_size, -1)])
+
+            y = torch.FloatTensor(batch_size * 2).zero_()
+            y[:batch_size] = 1 - 0.1
+            y[batch_size:] = 0.1
+            y = Variable(y)
+
+            if self.args.use_cuda:
+                y = y.cuda()
+
+            self.encoder.zero_grad()
+            self.src_embedder.zero_grad()
+            self.tgt_embedder.zero_grad()
+            preds = self.discriminator(disc_input)
+            loss = self.disc_loss_func(preds, 1 - y)
+            loss.backward()
+            self.enc_optim.zero_grad()
+            self.src_embedder_optim.step()
+            self.tgt_embedder_optim.step()
