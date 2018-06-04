@@ -46,7 +46,9 @@ def main(args):
     print(args)
     trainer = Trainer(args)
     # evaluator = Evaluator(trainer)
-    for i_epoch in range(0, args.epoch + 1):
+    for i_epoch in range(1, args.epoch + 1):
+
+        print('%dth epoch' % i_epoch)
 
         # train
         # log_dict = {'i_epoch': i_epoch,
