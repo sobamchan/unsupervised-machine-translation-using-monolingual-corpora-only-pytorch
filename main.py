@@ -18,7 +18,7 @@ def get_args():
     parser.add_argument('--tgt-lang', type=str, default='en')
 
     parser.add_argument('--epoch', type=int, default=100)
-    parser.add_argument('--batch-size', type=int, default=128)
+    parser.add_argument('--batch-size', type=int, default=256)
 
     parser.add_argument('--bilingual-dict-path',
                         type=str,
