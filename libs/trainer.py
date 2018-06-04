@@ -312,7 +312,7 @@ class Trainer:
         tgt_embedder = self.embedders[obj]
 
         batch = {'src': sents, 'tgt': sents}
-        batch = utils.prepare_batch(sents, sw2i, tw2i)
+        batch = utils.prepare_batch(batch, sw2i, tw2i)
         inputs, targets, input_lengths, target_lengths =\
             utils.pad_to_batch(batch, sw2i, tw2i)
         start_decode =\
