@@ -303,4 +303,36 @@ class Trainer:
         return
 
     def translate(self, obj, sents):
-        pass
+        non_obj = 'src' if obj == 'tgt' else 'tgt'
+        print('Translating %s -> %s...' % (non_obj, obj))
+        sw2i = self.converters[non_obj]['w2i']
+        tw2i = self.converters[obj]['w2i']
+        ti2w = self.converters[obj]['i2w']
+        src_embedder = self.embedders[non_obj]
+        tgt_embedder = self.embedders[obj]
+
+        batch = {'src': sents, 'tgt': sents}
+        batch = utils.prepare_batch(sents, sw2i, tw2i)
+        inputs, targets, input_lengths, target_lengths =\
+            utils.pad_to_batch(batch, sw2i, tw2i)
+        start_decode =\
+            Variable(LT([[tw2i['<s>']] * targets.size(0)])).transpose(0, 1)
+        if self.args.use_cuda:
+            inputs = inputs.cuda()
+            targets = targets.cuda()
+            start_decode = start_decode.cuda()
+        output, hidden_c = self.encoder(src_embedder,
+                                        inputs,
+                                        input_lengths)
+        max_length = 50
+        preds = self.decoder(tgt_embedder,
+                             start_decode,
+                             hidden_c,
+                             max_length,
+                             output,
+                             None,
+                             True)
+        preds = preds.view(inputs.size(0), max_length, -1)
+        preds_max = torch.max(preds, 2)[1]
+        print(' '.join([ti2w[p] for p in preds_max.data[0].tolist()]))
+        print(' '.join([ti2w[p] for p in preds_max.data[1].tolist()]))
