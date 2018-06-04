@@ -35,6 +35,7 @@ def get_args():
     parser.add_argument('--decoder-hidden-n', type=int, default=512)
     parser.add_argument('--decoder-num-layers', type=int, default=1)
     parser.add_argument('--lr', type=float, default=0.001)
+    parser.add_argument('--disc-lr', type=float, default=0.001)
     parser.add_argument('--use-cuda', action='store_true')
     parser.add_argument('--encoder-bidirectional', action='store_true')
     parser.add_argument('--decoder-bidirectional', action='store_true')
@@ -57,9 +58,10 @@ def main(args):
         # trainer.train_one_epoch_translator()
 
         # trainer.train_one_epoch_autoencoder('tgt')
-        first_iter = i_epoch == 1
-        trainer.train_one_epoch_cross_domain('tgt', first_iter=first_iter)
-        trainer.clip_current_model()
+        # first_iter = i_epoch == 1
+        # trainer.train_one_epoch_cross_domain('tgt', first_iter=first_iter)
+        # trainer.clip_current_model()
+        trainer.train_one_epoch_adversarial()
 
 
 if __name__ == '__main__':
