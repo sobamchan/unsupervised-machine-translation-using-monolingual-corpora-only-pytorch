@@ -187,7 +187,7 @@ class Discriminator(nn.Module):
                 layers.append(nn.LeakyReLU(0.2))
                 layers.append(nn.Dropout(0.1))
         layers.append(nn.Sigmoid())
-        self.layers = layers
+        self.layers = nn.Sequential(*layers)
 
     def forward(self, x):
         return self.layers(x)
