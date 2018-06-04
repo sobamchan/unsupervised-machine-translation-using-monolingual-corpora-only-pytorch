@@ -307,8 +307,11 @@ class Trainer:
         sw2i = self.converters[non_obj]['w2i']
         tw2i = self.converters[obj]['w2i']
         ti2w = self.converters[obj]['i2w']
-        src_embedder = self.embedders[non_obj]
-        tgt_embedder = self.embedders[obj]
+
+        src_embedder = self.prev_embedders[non_obj]
+        tgt_embedder = self.prev_embedders[obj]
+        encoder = self.prev_encoder
+        decoder = self.prev_decoder
 
         batch = {'src': sents, 'tgt': sents}
         batch = utils.prepare_batch(batch, sw2i, tw2i)
@@ -320,17 +323,17 @@ class Trainer:
             inputs = inputs.cuda()
             targets = targets.cuda()
             start_decode = start_decode.cuda()
-        output, hidden_c = self.encoder(src_embedder,
-                                        inputs,
-                                        input_lengths)
+        output, hidden_c = encoder(src_embedder,
+                                   inputs,
+                                   input_lengths)
         max_length = 50
-        preds = self.decoder(tgt_embedder,
-                             start_decode,
-                             hidden_c,
-                             max_length,
-                             output,
-                             None,
-                             True)
+        preds = decoder(tgt_embedder,
+                        start_decode,
+                        hidden_c,
+                        max_length,
+                        output,
+                        None,
+                        True)
         preds = preds.view(inputs.size(0), max_length, -1)
         preds_max = torch.max(preds, 2)[1]
 

@@ -58,13 +58,7 @@ def main(args):
 
         # trainer.train_one_epoch_autoencoder('tgt')
         trainer.train_one_epoch_cross_domain('tgt', first_iter=True)
-
-        # trainer.translation_validate()
-
-        # evaluation and logging
-        # evaluator.bleu(log_dict)
-        # evaluator.sample_translation()
-    trainer.translate(['hello .', 'nice to meet you !'], 'tgt')
+        trainer.clip_current_model()
 
 
 if __name__ == '__main__':
