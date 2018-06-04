@@ -57,7 +57,8 @@ def main(args):
         # trainer.train_one_epoch_translator()
 
         # trainer.train_one_epoch_autoencoder('tgt')
-        trainer.train_one_epoch_cross_domain('tgt', first_iter=True)
+        first_iter = i_epoch == 1
+        trainer.train_one_epoch_cross_domain('tgt', first_iter=first_iter)
         trainer.clip_current_model()
 
 
