@@ -169,3 +169,25 @@ class Decoder(nn.Module):
             attentions.append(alpha.squeeze(1))
 
         return torch.cat(decodes).max(1)[1], torch.cat(attentions)
+
+
+class Discriminator(nn.Module):
+
+    def __init__(self, in_d):
+        super(Discriminator, self).__init__()
+        self.in_d = in_d
+
+        # layers = [nn.Dropout()]
+        layers = []
+        for i in range(3):
+            input_dim = in_d if i == 0 else 1024
+            output_dim = 1 if i == 2 else 1024
+            layers.append(nn.Linear(input_dim, output_dim))
+            if i < 2:
+                layers.append(nn.LeakyReLU(0.2))
+                layers.append(nn.Dropout(0.1))
+        layers.append(nn.Sigmoid())
+        self.layers = layers
+
+    def forward(self, x):
+        return self.layers(x)
