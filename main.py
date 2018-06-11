@@ -51,17 +51,15 @@ def main(args):
 
         print('%dth epoch' % i_epoch)
 
-        # train
-        # log_dict = {'i_epoch': i_epoch,
-        #             'train_losses': [],  # per batch
-        #             'test_bleus': []}   # per sample
-        # trainer.train_one_epoch_translator()
+        trainer.train_one_epoch_autoencoder('tgt')
+        trainer.train_one_epoch_autoencoder('src')
 
-        # trainer.train_one_epoch_autoencoder('tgt')
-        # first_iter = i_epoch == 1
-        # trainer.train_one_epoch_cross_domain('tgt', first_iter=first_iter)
-        # trainer.clip_current_model()
+        trainer.train_one_epoch_cross_domain('tgt', first_iter=i_epoch == 1)
+        trainer.train_one_epoch_cross_domain('src', first_iter=i_epoch == 1)
+
         trainer.train_one_epoch_adversarial()
+
+        trainer.clip_current_model()
 
 
 if __name__ == '__main__':

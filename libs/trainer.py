@@ -110,7 +110,7 @@ class Trainer:
         print('%s -> %s' % (_from, _to))
         sw2i = self.converters[_from]['w2i']
         tw2i = self.converters[_to]['w2i']
-        ti2w = self.converters[_to]['i2w']
+        # ti2w = self.converters[_to]['i2w']
         src_embedder = self.embedders[_from]
         tgt_embedder = self.embedders[_to]
         src_embedder_optim = self.optims['src']
@@ -155,15 +155,15 @@ class Trainer:
             tgt_embedder_optim.step()
         print(np.mean(losses))
         preds = preds.view(inputs.size(0), targets.size(1), -1)
-        preds_max = torch.max(preds, 2)[1]
-        print(' '.join([ti2w[p] for p in preds_max.data[0].tolist()]))
-        print(' '.join([ti2w[p] for p in preds_max.data[1].tolist()]))
+        # preds_max = torch.max(preds, 2)[1]
+        # print(' '.join([ti2w[p] for p in preds_max.data[0].tolist()]))
+        # print(' '.join([ti2w[p] for p in preds_max.data[1].tolist()]))
 
     def train_one_epoch_autoencoder(self, obj):
         print('objective: %s' % obj)
         non_obj = 'src' if obj == 'tgt' else 'tgt'
         w2i = self.converters[obj]['w2i']
-        i2w = self.converters[obj]['i2w']
+        # i2w = self.converters[obj]['i2w']
         embedder = self.embedders[obj]
         embedder_optim = self.optims[obj]
         losses = []
@@ -210,19 +210,20 @@ class Trainer:
             self.enc_optim.step()
             self.dec_optim.step()
             embedder_optim.step()
-        print(np.mean(losses))
-        preds = preds.view(inputs.size(0), targets.size(1), -1)
-        preds_max = torch.max(preds, 2)[1]
-        print(' '.join([i2w[p] for p in preds_max.data[0].tolist()]))
-        print(' '.join([i2w[p] for p in preds_max.data[1].tolist()]))
+        # print(np.mean(losses))
+        # preds = preds.view(inputs.size(0), targets.size(1), -1)
+        # preds_max = torch.max(preds, 2)[1]
+        # print(' '.join([i2w[p] for p in preds_max.data[0].tolist()]))
+        # print(' '.join([i2w[p] for p in preds_max.data[1].tolist()]))
+        return np.mean(losses)
 
     def train_one_epoch_cross_domain(self, obj, first_iter=False):
         non_obj = 'src' if obj == 'tgt' else 'tgt'
         print('Calculating cross domain loss %s to %s...' % (obj, non_obj))
         obj_w2i = self.converters[obj]['w2i']
-        obj_i2w = self.converters[obj]['i2w']
+        # obj_i2w = self.converters[obj]['i2w']
         non_obj_w2i = self.converters[non_obj]['w2i']
-        non_obj_i2w = self.converters[non_obj]['i2w']
+        # non_obj_i2w = self.converters[non_obj]['i2w']
         obj_embedder = self.embedders[obj]
         obj_embedder_optim = self.optims[obj]
         non_obj_embedder = self.embedders[non_obj]
@@ -287,16 +288,17 @@ class Trainer:
             obj_embedder_optim.step()
             non_obj_embedder_optim.step()
 
-        print(np.mean(losses))
+        # print(np.mean(losses))
         preds = preds.view(inputs.size(0), targets.size(1), -1)
-        preds_max = torch.max(preds, 2)[1]
-        print(' '.join([non_obj_i2w[p] for p in inputs.data[0].tolist()]))
-        print(' '.join([obj_i2w[p] for p in preds_max.data[0].tolist()]))
-        print(' '.join([obj_i2w[p] for p in targets.data[0].tolist()]))
+        # preds_max = torch.max(preds, 2)[1]
+        # print(' '.join([non_obj_i2w[p] for p in inputs.data[0].tolist()]))
+        # print(' '.join([obj_i2w[p] for p in preds_max.data[0].tolist()]))
+        # print(' '.join([obj_i2w[p] for p in targets.data[0].tolist()]))
 
-        print(' '.join([non_obj_i2w[p] for p in inputs.data[1].tolist()]))
-        print(' '.join([obj_i2w[p] for p in preds_max.data[1].tolist()]))
-        print(' '.join([obj_i2w[p] for p in targets.data[1].tolist()]))
+        # print(' '.join([non_obj_i2w[p] for p in inputs.data[1].tolist()]))
+        # print(' '.join([obj_i2w[p] for p in preds_max.data[1].tolist()]))
+        # print(' '.join([obj_i2w[p] for p in targets.data[1].tolist()]))
+        return np.mean(losses)
 
     def clip_current_model(self):
         """
