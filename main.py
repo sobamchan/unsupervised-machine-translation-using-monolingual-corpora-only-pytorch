@@ -1,4 +1,5 @@
 import os
+from pprint import pprint
 import argparse
 import torch
 from libs.trainer import Trainer
@@ -51,15 +52,26 @@ def main(args):
 
         print('%dth epoch' % i_epoch)
 
-        trainer.train_one_epoch_autoencoder('tgt')
-        trainer.train_one_epoch_autoencoder('src')
+        log_dict = {}
+        log_dict['autoencoder'] = {}
+        log_dict['autoencoder']['tgt'] =\
+            trainer.train_one_epoch_autoencoder('tgt')
+        log_dict['autoencoder']['src'] =\
+            trainer.train_one_epoch_autoencoder('src')
 
-        trainer.train_one_epoch_cross_domain('tgt', first_iter=i_epoch == 1)
-        trainer.train_one_epoch_cross_domain('src', first_iter=i_epoch == 1)
+        log_dict['cross_domain'] = {}
+        log_dict['cross_domain']['tgt'] =\
+            trainer.train_one_epoch_cross_domain('tgt',
+                                                 first_iter=i_epoch == 1)
+        log_dict['cross_domain']['src'] =\
+            trainer.train_one_epoch_cross_domain('src',
+                                                 first_iter=i_epoch == 1)
 
-        trainer.train_one_epoch_adversarial()
+        log_dict['adversarial'] = trainer.train_one_epoch_adversarial()
 
         trainer.clip_current_model()
+
+        pprint(log_dict)
 
 
 if __name__ == '__main__':
