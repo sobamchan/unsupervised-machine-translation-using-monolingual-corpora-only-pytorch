@@ -240,7 +240,7 @@ class Trainer:
                                                      src_to_tgt=src_to_tgt))
                      for sent in batch[obj]]
             else:
-                naive_y = self.translate(batch[obj], obj)
+                naive_y = self.translate(batch[obj], non_obj)  # non -> obj
 
             noised_y = [sent_noise.run(sent) for sent in naive_y]
 
