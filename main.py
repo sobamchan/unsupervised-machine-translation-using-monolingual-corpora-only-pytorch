@@ -67,7 +67,10 @@ def main(args):
             trainer.train_one_epoch_cross_domain('src',
                                                  first_iter=i_epoch == 1)
 
-        log_dict['adversarial'] = trainer.train_one_epoch_adversarial()
+        disc_loss, gen_loss = trainer.train_one_epoch_adversarial()
+        log_dict['adversarial'] = {}
+        log_dict['adversarial']['disc'] = disc_loss
+        log_dict['adversarial']['gen'] = gen_loss
 
         trainer.clip_current_model()
 
