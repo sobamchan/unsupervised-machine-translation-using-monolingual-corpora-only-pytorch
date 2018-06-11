@@ -22,11 +22,12 @@ class Evaluator:
     def sample_translation(self, sample_n=3):
         src_sents = self.test_loader.dataset.src_sents[:3]
         tgt_sents = self.test_loader.dataset.tgt_sents[:3]
-        pred_sents = self.trainer.translate_batch(src_sents,
-                                                  tgt_sents[:])
-        for src_sent, tgt_sent, pred_sent in zip(src_sents,
-                                                 tgt_sents,
-                                                 pred_sents):
-            self.logger.log('input: %s' % src_sent)
-            self.logger.log('ground truth: %s' % tgt_sent)
-            self.logger.log('prediction: %s' % pred_sent)
+
+        log = []
+        for s, t in zip(src_sents, tgt_sents):
+            _log = {}
+            _log['src'] = s
+            _log['tgt'] = t
+            _log['pred'] = self.trainer.translate([s], 'src')[0]
+            log.append(_log)
+        return log

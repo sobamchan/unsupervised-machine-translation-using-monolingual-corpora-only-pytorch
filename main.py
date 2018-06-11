@@ -3,7 +3,7 @@ from pprint import pprint
 import argparse
 import torch
 from libs.trainer import Trainer
-# from libs.evaluator import Evaluator
+from libs.evaluator import Evaluator
 
 
 def get_args():
@@ -47,7 +47,7 @@ def get_args():
 def main(args):
     print(args)
     trainer = Trainer(args)
-    # evaluator = Evaluator(trainer)
+    evaluator = Evaluator(trainer)
     for i_epoch in range(1, args.epoch + 1):
 
         print('%dth epoch' % i_epoch)
@@ -73,6 +73,8 @@ def main(args):
         log_dict['adversarial']['gen'] = gen_loss
 
         trainer.clip_current_model()
+
+        log_dict['samples'] = evaluator.sample_translation()
 
         pprint(log_dict)
 
