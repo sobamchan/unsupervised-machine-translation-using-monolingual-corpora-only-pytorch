@@ -240,7 +240,7 @@ class Trainer:
                                                      src_to_tgt=src_to_tgt))
                      for sent in batch[obj]]
             else:
-                naive_y = self.translate(batch[obj], non_obj)  # non -> obj
+                naive_y = self.translate(batch[obj], obj)
 
             noised_y = [sent_noise.run(sent) for sent in naive_y]
 
@@ -313,15 +313,15 @@ class Trainer:
                 }
         return
 
-    def translate(self, sents, obj):
-        non_obj = 'src' if obj == 'tgt' else 'tgt'
+    def translate(self, sents, input_lang):
+        output_lang = 'src' if input_lang == 'tgt' else 'tgt'
         # print('Translating %s -> %s...' % (non_obj, obj))
-        sw2i = self.converters[non_obj]['w2i']
-        tw2i = self.converters[obj]['w2i']
-        ti2w = self.converters[obj]['i2w']
+        sw2i = self.converters[input_lang]['w2i']
+        tw2i = self.converters[output_lang]['w2i']
+        ti2w = self.converters[output_lang]['i2w']
 
-        src_embedder = self.prev_embedders[non_obj]
-        tgt_embedder = self.prev_embedders[obj]
+        src_embedder = self.prev_embedders[input_lang]
+        tgt_embedder = self.prev_embedders[output_lang]
         encoder = self.prev_encoder
         decoder = self.prev_decoder
 
@@ -352,13 +352,16 @@ class Trainer:
         result_sents = []
         for i in range(len(sents)):
             result_sent =\
-                ' '.join([ti2w[p] for p in preds_max.data[i].tolist()])
+                ' '.join([ti2w.get(p, '<UNK>')
+                          for p in preds_max.data[i].tolist()])
             result_sents.append(result_sent)
         return result_sents
 
     def train_one_epoch_adversarial(self):
         dataset = self.train_dataloader.dataset
         batch_size = self.args.batch_size // 2
+        disc_losses = []
+        gen_losses = []
 
         # Train Discriminator
         self.encoder.eval()
@@ -415,6 +418,7 @@ class Trainer:
             preds = self.discriminator(disc_input)
             loss = self.disc_loss_func(preds, y)
             loss.backward()
+            disc_losses.append(loss.data[0])
             self.disc_optim.step()
 
         # Train Generator (Encoder)
@@ -472,7 +476,9 @@ class Trainer:
             self.tgt_embedder.zero_grad()
             preds = self.discriminator(disc_input)
             loss = self.disc_loss_func(preds, 1 - y)
+            gen_losses.append(loss.data[0])
             loss.backward()
             self.enc_optim.zero_grad()
             self.src_embedder_optim.step()
             self.tgt_embedder_optim.step()
+        return np.mean(disc_losses), np.mean(gen_losses)
