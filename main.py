@@ -74,7 +74,8 @@ def main(args):
 
         trainer.clip_current_model()
 
-        log_dict['samples'] = evaluator.sample_translation()
+        if i_epoch > 1:
+            log_dict['samples'] = evaluator.sample_translation()
 
         pprint(log_dict)
 

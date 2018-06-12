@@ -9,8 +9,8 @@ class Evaluator:
         self.test_loader = trainer.test_dataloader
 
     def sample_translation(self, sample_n=3):
-        src_sents = self.test_loader.dataset.src_sents[:3]
-        tgt_sents = self.test_loader.dataset.tgt_sents[:3]
+        src_sents = self.test_loader.dataset.src[:3]
+        tgt_sents = self.test_loader.dataset.tgt[:3]
 
         log = []
         for s, t in zip(src_sents, tgt_sents):
